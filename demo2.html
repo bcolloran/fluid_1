@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      Delaunator, the fastest JavaScript library for Delaunay triangulation of
+      2D points
+    </title>
+    <style>
+      body {
+        margin: 0;
+        text-align: center;
+        font-family: sans-serif;
+      }
+      canvas {
+        border: 1px solid #ccc;
+        position: relative;
+      }
+      a,
+      a:visited {
+        color: #09f;
+      }
+    </style>
+  </head>
+  <body>
+    <h2><a href="https://github.com/mapbox/delaunator">delaunator</a> demo</h2>
+    <canvas id="canvas"></canvas>
+
+    <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
+    <script>
+      const dt = 0.1;
+      N = 200;
+      //   var points = new Array(N)
+      //     .fill(0)
+      //     .map(() => [Math.random() * 200, Math.random() * 100 + 50]);
+
+      var points = new Float64Array(N * 2)
+        .fill(0)
+        .map((x, i) =>
+          i % 2 === 0 ? Math.random() * 200 : Math.random() * 100 + 50
+        );
+
+      var vel = new Float64Array(N * 2)
+        .fill(0)
+        .map(() => Math.random() * 2 - 1);
+
+      console.time("delaunay");
+      //   var delaunay = Delaunator.from(points);
+      var delaunay = new Delaunator(points);
+      console.timeEnd("delaunay");
+
+      var canvas = document.getElementById("canvas");
+      var ctx = canvas.getContext("2d");
+
+      //   var minX = Infinity;
+      //   var minY = Infinity;
+      //   var minY = 0;
+      //   var maxX = -Infinity;
+      //   var maxY = -Infinity;
+      //   for (var i = 0; i < points.length; i++) {
+      //     var x = points[i][0];
+      //     var y = points[i][1];
+      //     if (x < minX) minX = x;
+      //     // if (y < minY) minY = y;
+      //     if (x > maxX) maxX = x;
+      //     if (y > maxY) maxY = y;
+      //   }
+
+      var minX = 0;
+      var maxX = 200;
+      var minY = 0;
+      var maxY = 150;
+
+      var padding = 5;
+      var w = 1024;
+      var h = ((w - 2 * padding) * (maxY - minY)) / (maxX - minX) + 2 * padding;
+
+      canvas.style.width = w + "px";
+      canvas.style.height = h + "px";
+
+      canvas.width = w;
+      canvas.height = h;
+
+      if (window.devicePixelRatio >= 2) {
+        canvas.width = w * 2;
+        canvas.height = h * 2;
+        ctx.scale(2, 2);
+      }
+
+      var ratio = (w - 2 * padding) / Math.max(maxX - minX, maxY - minY);
+
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+
+      var updated = true;
+
+      canvas.onmousemove = function (e) {
+        if (e.buttons === 1) {
+          points.push([
+            (e.layerX - padding) / ratio + minX,
+            (e.layerY - padding) / ratio + minY,
+          ]);
+          console.time("delaunay");
+          //   delaunay = Delaunator.from(points);
+          delaunay = new Delaunator(points);
+          console.timeEnd("delaunay");
+          updated = true;
+        }
+      };
+
+      canvas.onmouseup = function (e) {
+        points.push([
+          (e.layerX - padding) / ratio + minX,
+          (e.layerY - padding) / ratio + minY,
+        ]);
+        console.time("delaunay");
+        // delaunay = Delaunator.from(points);
+        delaunay = new Delaunator(points);
+        console.timeEnd("delaunay");
+        updated = true;
+      };
+
+      function getX(i) {
+        // return padding + ratio * (points[i][0] - minX);
+        return padding + ratio * (points[2 * i] - minX);
+      }
+      function getY(i) {
+        // return padding + ratio * (points[i][1] - minY);
+        return padding + ratio * (points[2 * i + 1] - minX);
+      }
+
+      var acc;
+      function step() {
+        acc = points.map((coord, i) => {
+          if (i % 2 === 0) {
+            // x coord
+            // if (x - minX < 10) {
+            //   return 1 / (x - minX) ** 2;
+            // }
+            // if (maxX - x < 10) {
+            //   return -1 / (maxX - x) ** 2;
+            // }
+            return 1 / (coord - minX) ** 2 - 1 / (maxX - coord) ** 2;
+          } else {
+            //   y coord
+            // if (y - minY < 10) {
+            //   return 1 / (y - minY) ** 2;
+            // }
+            // if (maxY - y < 10) {
+            //   return 1 / (maxY - y) ** 2;
+            // }
+            return 1 / (coord - minY) ** 2 - 1 / (maxY - coord) ** 2;
+          }
+        });
+
+        vel = vel.map((v, i) => v + acc[i] * dt);
+
+        points = points.map((x, i) => x + vel[i] * dt);
+      }
+
+      function frame() {
+        requestAnimationFrame(frame);
+        step();
+
+        // delaunay = Delaunator.from(points);
+        delaunay = new Delaunator(points);
+        updated = true;
+
+        draw();
+      }
+      frame();
+
+      function draw() {
+        if (!updated) return;
+        updated = false;
+        ctx.clearRect(0, 0, w, h);
+        var triangles = delaunay.triangles;
+        ctx.beginPath();
+        for (var i = 0; i < triangles.length; i += 3) {
+          var p0 = triangles[i];
+          var p1 = triangles[i + 1];
+          var p2 = triangles[i + 2];
+          ctx.moveTo(getX(p0), getY(p0));
+          ctx.lineTo(getX(p1), getY(p1));
+          ctx.lineTo(getX(p2), getY(p2));
+          ctx.closePath();
+        }
+        ctx.strokeStyle = "rgba(0,200,0,1)";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        // ctx.fillStyle = 'rgba(255,255,0,0.1)';
+        // ctx.fill();
+
+        ctx.beginPath();
+        for (const i of delaunay.hull) {
+          ctx.lineTo(getX(i), getY(i));
+        }
+        ctx.closePath();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "red";
+        ctx.stroke();
+
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        for (var i = 0; i < points.length; i++) {
+          ctx.rect(getX(i) - 1.5, getY(i) - 1.5, 3, 3);
+        }
+        ctx.fill();
+      }
+    </script>
+  </body>
+</html>

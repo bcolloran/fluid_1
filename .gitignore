@@ -1,0 +1,7 @@
+node_modules
+tmp
+*.log
+yarn.lock
+coverage
+delaunator.js
+delaunator.min.js

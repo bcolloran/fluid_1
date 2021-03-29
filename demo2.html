@@ -28,15 +28,30 @@
     <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
     <script>
       const dt = 0.1;
-      N = 200;
-      //   var points = new Array(N)
-      //     .fill(0)
-      //     .map(() => [Math.random() * 200, Math.random() * 100 + 50]);
+      f_mod = 0.2;
+
+      var minX = 0;
+      var maxX = 200;
+      var minY = 0;
+      var maxY = 150;
+      var dataPadding = 10;
+
+      var rangeX = maxX - minX - 2 * dataPadding;
+      var rangeY = maxY - minY - 2 * dataPadding;
+
+      var padding = 5;
+      var w = 1024;
+      var h = ((w - 2 * padding) * (maxY - minY)) / (maxX - minX) + 2 * padding;
+      var ratio = (w - 2 * padding) / Math.max(maxX - minX, maxY - minY);
+
+      N = 5000;
 
       var points = new Float64Array(N * 2)
         .fill(0)
         .map((x, i) =>
-          i % 2 === 0 ? Math.random() * 200 : Math.random() * 100 + 50
+          i % 2 === 0
+            ? Math.random() * rangeX + dataPadding
+            : Math.random() * rangeY + dataPadding
         );
 
       var vel = new Float64Array(N * 2)
@@ -51,29 +66,6 @@
       var canvas = document.getElementById("canvas");
       var ctx = canvas.getContext("2d");
 
-      //   var minX = Infinity;
-      //   var minY = Infinity;
-      //   var minY = 0;
-      //   var maxX = -Infinity;
-      //   var maxY = -Infinity;
-      //   for (var i = 0; i < points.length; i++) {
-      //     var x = points[i][0];
-      //     var y = points[i][1];
-      //     if (x < minX) minX = x;
-      //     // if (y < minY) minY = y;
-      //     if (x > maxX) maxX = x;
-      //     if (y > maxY) maxY = y;
-      //   }
-
-      var minX = 0;
-      var maxX = 200;
-      var minY = 0;
-      var maxY = 150;
-
-      var padding = 5;
-      var w = 1024;
-      var h = ((w - 2 * padding) * (maxY - minY)) / (maxX - minX) + 2 * padding;
-
       canvas.style.width = w + "px";
       canvas.style.height = h + "px";
 
@@ -85,8 +77,6 @@
         canvas.height = h * 2;
         ctx.scale(2, 2);
       }
-
-      var ratio = (w - 2 * padding) / Math.max(maxX - minX, maxY - minY);
 
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
@@ -100,7 +90,6 @@
             (e.layerY - padding) / ratio + minY,
           ]);
           console.time("delaunay");
-          //   delaunay = Delaunator.from(points);
           delaunay = new Delaunator(points);
           console.timeEnd("delaunay");
           updated = true;
@@ -113,57 +102,138 @@
           (e.layerY - padding) / ratio + minY,
         ]);
         console.time("delaunay");
-        // delaunay = Delaunator.from(points);
         delaunay = new Delaunator(points);
         console.timeEnd("delaunay");
         updated = true;
       };
 
       function getX(i) {
-        // return padding + ratio * (points[i][0] - minX);
         return padding + ratio * (points[2 * i] - minX);
       }
       function getY(i) {
-        // return padding + ratio * (points[i][1] - minY);
         return padding + ratio * (points[2 * i + 1] - minX);
+      }
+
+      function edgesOfTriangle(t) {
+        return [3 * t, 3 * t + 1, 3 * t + 2];
+      }
+      function triangleOfEdge(e) {
+        return Math.floor(e / 3);
+      }
+
+      function nextHalfedge(e) {
+        return e % 3 === 2 ? e - 2 : e + 1;
+      }
+
+      function prevHalfedge(e) {
+        return e % 3 === 0 ? e + 2 : e - 1;
+      }
+
+      //   function forEachTriangleEdge(points, delaunay, callback) {
+      //     for (let e = 0; e < delaunay.triangles.length; e++) {
+      //       if (e > delaunay.halfedges[e]) {
+      //         const p = points[delaunay.triangles[e]];
+      //         const q = points[delaunay.triangles[nextHalfedge(e)]];
+      //         callback(e, p, q);
+      //       }
+      //     }
+      //   }
+
+      function distance(x1, y1, x2, y2) {
+        return Math.hypot(x1 - x2, y1 - y2);
+      }
+
+      function forceForEachTriangleEdge() {
+        for (let e = 0; e < delaunay.triangles.length; e++) {
+          //   console.log(e);
+          if (e > delaunay.halfedges[e]) {
+            //   if (e > -1) {
+            const i = delaunay.triangles[e];
+            const j = delaunay.triangles[nextHalfedge(e)];
+            // const j = delaunay.halfedges[e];
+            // console.log(i, j);yu
+            const x_i = points[2 * i];
+            const y_i = points[2 * i + 1];
+
+            const x_j = points[2 * j];
+            const y_j = points[2 * j + 1];
+
+            // const f = f_mod / Math.hypot(x_i - x_j, y_i - y_j);
+            // distSqr = (x_i - x_j) ** 2 + (y_i - y_j) ** 2;
+
+            // const xAcc = -(f_mod * (x_i - x_j)) / distSqr;
+            // const yAcc = -(f_mod * (y_i - y_j)) / distSqr;
+            const normalizedForce =
+              f_mod / Math.hypot(x_i - x_j, y_i - y_j) ** 3;
+
+            const xAcc = normalizedForce * (x_i - x_j);
+            const yAcc = normalizedForce * (y_i - y_j);
+
+            acc[2 * i] += xAcc;
+            acc[2 * i + 1] += yAcc;
+
+            acc[2 * j] += -xAcc;
+            acc[2 * j + 1] += -yAcc;
+            // console.log(f);
+          }
+        }
       }
 
       var acc;
       function step() {
         acc = points.map((coord, i) => {
           if (i % 2 === 0) {
-            // x coord
-            // if (x - minX < 10) {
-            //   return 1 / (x - minX) ** 2;
-            // }
-            // if (maxX - x < 10) {
-            //   return -1 / (maxX - x) ** 2;
-            // }
-            return 1 / (coord - minX) ** 2 - 1 / (maxX - coord) ** 2;
+            // x-coord
+            //   X
+            return 0;
           } else {
-            //   y coord
-            // if (y - minY < 10) {
-            //   return 1 / (y - minY) ** 2;
-            // }
-            // if (maxY - y < 10) {
-            //   return 1 / (maxY - y) ** 2;
-            // }
-            return 1 / (coord - minY) ** 2 - 1 / (maxY - coord) ** 2;
+            // y-coord
+            // gravity is positive because pixel coords are inverted
+            const gravity = 0.1;
+            return gravity;
+            // return 0;
           }
         });
+        forceForEachTriangleEdge();
 
-        vel = vel.map((v, i) => v + acc[i] * dt);
+        vel = vel.map((v, i) => {
+          let vNew = v + acc[i] * dt;
+          // perfectly elastic collisions with walls
+          if (i % 2 === 0) {
+            // x-coord
+
+            if (points[i] < minX || points[i] > maxX) {
+              vNew = -vNew;
+            }
+          } else {
+            // y-coord
+            if (points[i] < minY || points[i] > maxY) {
+              vNew = -vNew;
+            }
+          }
+          return vNew * 0.99;
+        });
 
         points = points.map((x, i) => x + vel[i] * dt);
+        delaunay.coords = points;
+        delaunay.update();
+        updated = true;
       }
 
       function frame() {
         requestAnimationFrame(frame);
         step();
-
-        // delaunay = Delaunator.from(points);
-        delaunay = new Delaunator(points);
-        updated = true;
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
+        // step();
 
         draw();
       }

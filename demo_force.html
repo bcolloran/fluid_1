@@ -28,7 +28,8 @@
     <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
     <script>
       const dt = 0.1;
-      f_mod = 0.2;
+      f_mod = 0.02;
+      const dragCoeff = 0.01;
 
       var minX = 0;
       var maxX = 200;
@@ -44,19 +45,20 @@
       var h = ((w - 2 * padding) * (maxY - minY)) / (maxX - minX) + 2 * padding;
       var ratio = (w - 2 * padding) / Math.max(maxX - minX, maxY - minY);
 
-      N = 5000;
+      N = 500;
 
       var points = new Float64Array(N * 2)
         .fill(0)
         .map((x, i) =>
           i % 2 === 0
-            ? Math.random() * rangeX + dataPadding
+            ? (Math.random() * rangeX) / 2 + rangeX / 2 + dataPadding
             : Math.random() * rangeY + dataPadding
         );
 
       var vel = new Float64Array(N * 2)
         .fill(0)
         .map(() => Math.random() * 2 - 1);
+      var acc = new Float64Array(N * 2);
 
       console.time("delaunay");
       //   var delaunay = Delaunator.from(points);
@@ -179,42 +181,80 @@
         }
       }
 
+      function handleCollision(pos, v, lower, upper) {
+        if (pos > upper) return [upper, -v];
+        if (pos < lower) return [lower, -v];
+        return [pos, v];
+      }
+
       var acc;
       function step() {
-        acc = points.map((coord, i) => {
-          if (i % 2 === 0) {
-            // x-coord
-            //   X
-            return 0;
-          } else {
-            // y-coord
-            // gravity is positive because pixel coords are inverted
-            const gravity = 0.1;
-            return gravity;
-            // return 0;
-          }
-        });
+        // acc = points.map((coord, i) => {
+        //   if (i % 2 === 0) {
+        //     // x-coord
+        //     //   X
+        //     return 0;
+        //   } else {
+        //     // y-coord
+        //     // gravity is positive because pixel coords are inverted
+        //     const gravity = 0.1;
+        //     return gravity;
+        //     // return 0;
+        //   }
+        // });
         forceForEachTriangleEdge();
 
-        vel = vel.map((v, i) => {
-          let vNew = v + acc[i] * dt;
-          // perfectly elastic collisions with walls
-          if (i % 2 === 0) {
-            // x-coord
+        // vel = vel.map((v, i) => {
+        //   let vNew = v + acc[i] * dt;
+        //   // perfectly elastic collisions with walls
+        //   if (i % 2 === 0) {
+        //     // x-coord
 
-            if (points[i] < minX || points[i] > maxX) {
-              vNew = -vNew;
-            }
-          } else {
-            // y-coord
-            if (points[i] < minY || points[i] > maxY) {
-              vNew = -vNew;
-            }
-          }
-          return vNew * 0.99;
-        });
+        //     if (points[i] < minX || points[i] > maxX) {
+        //       vNew = -vNew;
+        //     }
+        //   } else {
+        //     // y-coord
+        //     if (points[i] < minY || points[i] > maxY) {
+        //       vNew = -vNew;
+        //     }
+        //     // handle drag
+        //     velMagnitude = Math.hypot();
+        //   }
+        //   return vNew;
+        // });
 
-        points = points.map((x, i) => x + vel[i] * dt);
+        gravity = 0;
+
+        for (let i = 0, n = points.length / 2; i < n; i++) {
+          let v_x = vel[2 * i];
+          let v_y = vel[2 * i + 1];
+          let pos_x = points[2 * i];
+          let pos_y = points[2 * i + 1];
+
+          const drag = Math.hypot(v_x, v_y) * dragCoeff;
+
+          // gravity is positive because pixel coords are inverted
+          const gravity = 0.1;
+
+          v_x = v_x + (acc[2 * i] - v_x * drag) * dt;
+          v_y = v_y + (acc[2 * i + 1] - v_y * drag + gravity) * dt;
+
+          [pos_x, v_x] = handleCollision(pos_x, v_x, minX, maxX);
+          [pos_y, v_y] = handleCollision(pos_y, v_y, minY, maxY);
+
+          vel[2 * i] = v_x;
+          vel[2 * i + 1] = v_y;
+
+          points[2 * i] = pos_x + v_x * dt;
+          points[2 * i + 1] = pos_y + v_y * dt;
+
+          // zero out accelerations for next updates!!!
+          acc[2 * i] = 0;
+          acc[2 * i + 1] = 0;
+        }
+
+        // points = points.map((x, i) => x + vel[i] * dt);
         delaunay.coords = points;
         delaunay.update();
         updated = true;

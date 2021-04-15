@@ -5,3 +5,5 @@ yarn.lock
 coverage
 delaunator.js
 delaunator.min.js
+dist
+.cache

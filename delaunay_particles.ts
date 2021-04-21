@@ -38,7 +38,7 @@ console.time("delaunay");
 var delaunay = new Delaunator(points);
 console.timeEnd("delaunay");
 
-var canvas = document.getElementById("canvas");
+var canvas = <HTMLCanvasElement>document.getElementById("canvas");
 var ctx = canvas.getContext("2d");
 
 canvas.style.width = w + "px";

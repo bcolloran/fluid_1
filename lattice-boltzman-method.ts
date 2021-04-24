@@ -2,6 +2,8 @@ if (module.hot) {
   module.hot.accept();
 }
 
+import { makePlot } from "./canvas";
+
 /**
  * for main overview:
  * https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.321.499&rep=rep1&type=pdf
@@ -10,9 +12,6 @@ if (module.hot) {
  * https://medium.com/swlh/create-your-own-lattice-boltzmann-simulation-with-python-8759e8b53b1c
  *
  * */
-
-const dt = 0.5;
-var updated = true;
 
 const canvasWidth = 400;
 const canvasHeight = 100;
@@ -37,11 +36,10 @@ const n_x = canvasWidth;
 const n_y = canvasHeight;
 const n_i = 9;
 
-let f_in = new Float64Array(n_x * n_y * n_i).fill(0);
-let f_out = new Float64Array(n_x * n_y * n_i).fill(0);
+let F = new Float64Array(n_x * n_y * n_i).fill(0);
+let F_tmp = new Float64Array(n_x * n_y * n_i).fill(0);
 
-window.f_in = f_in;
-window.f_out = f_out;
+window.F = F;
 
 const tau = 0.6;
 const rho0 = 100;
@@ -75,10 +73,23 @@ const weights = [
   1 / 36,
 ];
 
-const F = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+// const force = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
 // const xyi = (x, y, i) => i * n_x * n_y + y * n_x + x;
-const xyi = (x, y, i) => i + n_x * n_i * y + n_i * x;
+const xyi = (x, y, i) => {
+  if (i > n_i) {
+    throw new Error("invalid i");
+  }
+  if (x > n_x) {
+    throw new Error("invalid x");
+  }
+  if (y > n_y) {
+    throw new Error("invalid y");
+  }
+  return i + n_x * n_i * y + n_i * x;
+};
+
+window.xyi = xyi;
 
 // function init_f() {
 //   for (let i = 0; i < n_i; i++) {
@@ -86,8 +97,7 @@ const xyi = (x, y, i) => i + n_x * n_i * y + n_i * x;
 //     for (let y = Math.round(n_y * 0.25); y < Math.round(n_y * 0.5); y++) {
 //       for (let x = Math.round(n_x * 0.2); x < Math.round(n_x * 0.7); x++) {
 //         // console.log(xyi(x, y, i));
-//         f_out[xyi(x, y, i)] = 0.01;
-//         f_in[xyi(x, y, i)] = 0.01;
+//         F[xyi(x, y, i)] = 0.01;
 //       }
 //     }
 //   }
@@ -96,12 +106,12 @@ const xyi = (x, y, i) => i + n_x * n_i * y + n_i * x;
 // flow to the right with some perturbations
 function init_flow_right() {
   console.log("flow");
-  f_out = f_out.map(() => 1 + 0.01 * (Math.random() - 0.5));
-  console.log(f_out);
+  F = F.map(() => 1 + 0.01 * (Math.random() - 0.5));
+  console.log(F);
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
       // i=1 is to the right
-      f_out[xyi(x, y, 1)] +=
+      F[xyi(x, y, 1)] +=
         2 * (1 + 0.2 * Math.cos(((2 * Math.PI * x) / n_x) * 4));
     }
   }
@@ -110,18 +120,28 @@ function init_flow_right() {
     for (let x = 0; x < n_x; x++) {
       let rho_xy = 0;
       for (let i = 0; i < n_i; i++) {
-        rho_xy += f_out[xyi(x, y, i)];
+        rho_xy += F[xyi(x, y, i)];
       }
       for (let i = 0; i < n_i; i++) {
-        f_out[xyi(x, y, i)] *= rho0 / rho_xy;
+        F[xyi(x, y, i)] *= rho0 / rho_xy;
       }
     }
   }
-  // set f_in to match f_out initially
-  f_out.forEach((v, j) => (f_in[j] = v));
+
+  // // set flows in cylinder to NaN
+  // for (let y = 0; y < n_y; y++) {
+  //   for (let x = 0; x < n_x; x++) {
+  //     for (let i = 0; i < n_i; i++) {
+  //       if ((x - n_x / 4) ** 2 + (y - n_y / 2) ** 2 < (n_y / 4) ** 2) {
+  //         F[xyi(x, y, i)] = NaN;
+  //       }
+  //     }
+  //   }
+  // }
 }
 
 // function streaming() {
+//   F_tmp = F.slice();
 //   // streaming not needed for i==0
 //   for (let i = 1; i < n_i; i++) {
 //     const e = basis[i];
@@ -135,10 +155,10 @@ function init_flow_right() {
 //           y + e[1] < 0
 //         ) {
 //           // in these cases, reflect
-//           f_in[xyi(x, y, iOpposite)] = f_out[xyi(x, y, i)];
+//           F[xyi(x, y, iOpposite)] = F_tmp[xyi(x, y, i)];
 //         } else {
 //           // simple case
-//           f_in[xyi(x + e[0], y + e[1], i)] = f_out[xyi(x, y, i)];
+//           F[xyi(x + e[0], y + e[1], i)] = F_tmp[xyi(x, y, i)];
 //         }
 //       }
 //     }
@@ -150,14 +170,23 @@ function wrap_index(a, n_a) {
 }
 
 function streaming_wrap() {
+  F_tmp = F.slice();
   // streaming not needed for i==0
   for (let i = 1; i < n_i; i++) {
     const e = basis[i];
-    const iOpposite = basisOpposite[i];
     for (let y = 0; y < n_y; y++) {
       for (let x = 0; x < n_x; x++) {
-        const j = xyi(wrap_index(x + e[0], n_x), wrap_index(y + e[1], n_y), i);
-        f_in[j] = f_out[xyi(x, y, i)];
+        if ((x - n_x / 4) ** 2 + (y - n_y / 2) ** 2 < (n_y / 4) ** 2) {
+          // reflect off of cylinder
+          const xyi_tnext = xyi(x, y, basisOpposite[i]);
+        } else {
+          const xyi_tnext = xyi(
+            wrap_index(x + e[0], n_x),
+            wrap_index(y + e[1], n_y),
+            i
+          );
+          F[xyi_tnext] = F_tmp[xyi(x, y, i)];
+        }
       }
     }
   }
@@ -168,7 +197,7 @@ function moments(x, y): [number, vect] {
   let v_y = 0;
   let rho = 0;
   for (let i = 0; i < n_i; i++) {
-    const f_i = f_in[xyi(x, y, i)];
+    const f_i = F[xyi(x, y, i)];
     rho += f_i;
     v_x += f_i * basis[i][0];
     v_y += f_i * basis[i][1];
@@ -190,12 +219,12 @@ function collision() {
 
       for (let i = 0; i < n_i; i++) {
         const e = basis[i];
-        const fIn_i = f_in[xyi(x, y, i)];
+        const fIn_i = F[xyi(x, y, i)];
         const eDotV = dot(e, v);
         const f_eq =
           weights[i] * rho * (1 + 3 * eDotV + 4.5 * eDotV ** 2 - 1.5 * vDotV);
-        // f_out[xyi(x, y, i)] = fIn_i - (fIn_i - f_eq) / tau + F[i];
-        f_out[xyi(x, y, i)] = fIn_i - (fIn_i - f_eq) / tau;
+        // F[xyi(x, y, i)] = fIn_i - (fIn_i - f_eq) / tau + F[i];
+        F[xyi(x, y, i)] = fIn_i - (fIn_i - f_eq) / tau;
       }
     }
   }
@@ -212,57 +241,85 @@ function draw() {
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
       const [rho, v] = moments(x, y);
+      plt2.setA(x, y, 255);
+
+      plt2.setR(x, y, F[xyi(x, y, 1)] * 10);
+      plt2.setG(x, y, 0);
+      plt2.setB(x, y, 0);
+      // plt2.setR(x, y, (v[0] / 1) * 255);
+      // plt2.setB(x, y, (v[1] / 1) * 255);
+
       if (isNaN(rho) || isNaN(v[0]) || isNaN(v[1])) {
         // console.log(x, y);
-        imageData.data[image_xyc(x, y, 0)] = Math.round(255);
-        imageData.data[image_xyc(x, y, 1)] = Math.round(0);
-        imageData.data[image_xyc(x, y, 2)] = Math.round(0);
-        imageData.data[image_xyc(x, y, 3)] = Math.round(255);
+        imageData.data[image_xyc(x, y, 0)] = 255;
+        imageData.data[image_xyc(x, y, 1)] = 0;
+        imageData.data[image_xyc(x, y, 2)] = 0;
+        imageData.data[image_xyc(x, y, 3)] = 255;
       } else if (rho < 0) {
         // console.log(x, y);
-        imageData.data[image_xyc(x, y, 0)] = Math.round(0);
-        imageData.data[image_xyc(x, y, 1)] = Math.round(255);
-        imageData.data[image_xyc(x, y, 2)] = Math.round(0);
-        imageData.data[image_xyc(x, y, 3)] = Math.round(255);
+        imageData.data[image_xyc(x, y, 0)] = 0;
+        imageData.data[image_xyc(x, y, 1)] = 255;
+        imageData.data[image_xyc(x, y, 2)] = 0;
+        imageData.data[image_xyc(x, y, 3)] = 255;
       } else {
-        // assume rho in [0,50], and rescale
-        imageData.data[image_xyc(x, y, 3)] = Math.round((rho / 50) * 255);
+        // assume rho in [0,200], and rescale
+        imageData.data[image_xyc(x, y, 3)] = (rho / 200) * 255;
       }
 
       // draw cylinder
       if ((x - n_x / 4) ** 2 + (y - n_y / 2) ** 2 < (n_y / 4) ** 2) {
-        imageData.data[image_xyc(x, y, 0)] = Math.round(255);
-        imageData.data[image_xyc(x, y, 1)] = Math.round(255);
-        imageData.data[image_xyc(x, y, 2)] = Math.round(255);
-        imageData.data[image_xyc(x, y, 3)] = Math.round(255);
+        imageData.data[image_xyc(x, y, 0)] = 255;
+        imageData.data[image_xyc(x, y, 1)] = 255;
+        imageData.data[image_xyc(x, y, 2)] = 255;
+        imageData.data[image_xyc(x, y, 3)] = 255;
       }
     }
   }
   ctx.putImageData(imageData, 0, 0);
+  plt2.update();
   print_diagnostics();
 }
 
+function rho_diagnostics() {
+  let rho_sum = 0;
+  let rho_max = -Infinity;
+  let rho_min = Infinity;
+  for (let y = 0; y < n_y; y++) {
+    for (let x = 0; x < n_x; x++) {
+      const [rho, v] = moments(x, y);
+      rho_sum += rho;
+      rho_max = Math.max(rho, rho_max);
+      rho_min = Math.min(rho, rho_min);
+    }
+  }
+  return [rho_sum / (n_y * n_x), rho_min, rho_max];
+}
+
 function print_diagnostics() {
-  const sum = f_in.reduce((a, b) => a + b, 0);
+  const [rho_mean, rho_min, rho_max] = rho_diagnostics();
+  const sum = F.reduce((a, b) => a + b, 0);
   mass_div.innerHTML = `<pre>
 t: ${t}
 sum: ${sum}
-max: ${Math.max(...f_in)}
-min: ${Math.min(...f_in)}
+max: ${Math.max(...F)}
+min: ${Math.min(...F)}
 mean: ${sum / (n_i * n_x * n_y)}
+rho_mean: ${rho_mean}
+rho_min: ${rho_min}
+rho_max: ${rho_max}
   </pre>`;
 }
 
 let t = 0;
 export function frame() {
-  console.log(f_in);
-  console.log(f_out);
-  console.log(imageData);
+  // console.log(F);
+  // console.log(imageData);
   step();
   draw();
-  if (t < 0) {
+  window.F = F;
+  if (t < 110) {
     requestAnimationFrame(frame);
-    console.log(t);
+    // console.log(t);
   }
   t++;
 }
@@ -272,6 +329,10 @@ init_flow_right();
 
 let button_next;
 let mass_div;
+
+document.getElementById("more_plots").innerHTML = "";
+const plt2 = makePlot(canvasWidth, canvasHeight, "more_plots");
+
 setTimeout(() => {
   button_next = document.getElementById("button_next");
   button_next.onclick = frame;

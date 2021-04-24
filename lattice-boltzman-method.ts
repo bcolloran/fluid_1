@@ -39,6 +39,8 @@ const n_i = 9;
 let F = new Float64Array(n_x * n_y * n_i).fill(0);
 let F_tmp = new Float64Array(n_x * n_y * n_i).fill(0);
 
+let rhoVxVy = new Float64Array(n_x * n_y * 3).fill(0);
+
 window.F = F;
 
 const tau = 0.6;
@@ -77,19 +79,19 @@ const weights = [
 
 // const xyi = (x, y, i) => i * n_x * n_y + y * n_x + x;
 const xyi = (x, y, i) => {
-  if (i > n_i) {
-    throw new Error("invalid i");
-  }
-  if (x > n_x) {
-    throw new Error("invalid x");
-  }
-  if (y > n_y) {
-    throw new Error("invalid y");
-  }
+  // if (i > n_i) {
+  //   throw new Error("invalid i");
+  // }
+  // if (x > n_x) {
+  //   throw new Error("invalid x");
+  // }
+  // if (y > n_y) {
+  //   throw new Error("invalid y");
+  // }
   return i + n_x * n_i * y + n_i * x;
 };
 
-window.xyi = xyi;
+// window.xyi = xyi;
 
 // function init_f() {
 //   for (let i = 0; i < n_i; i++) {
@@ -103,10 +105,18 @@ window.xyi = xyi;
 //   }
 // }
 
+function randn_bm() {
+  var u = 0,
+    v = 0;
+  while (u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
 // flow to the right with some perturbations
 function init_flow_right() {
   console.log("flow");
-  F = F.map(() => 1 + 0.01 * (Math.random() - 0.5));
+  F = F.map(() => 1 + 0.01 *randn_bm();
   console.log(F);
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
@@ -122,6 +132,7 @@ function init_flow_right() {
       for (let i = 0; i < n_i; i++) {
         rho_xy += F[xyi(x, y, i)];
       }
+      // normalize density to rho0 everywhere
       for (let i = 0; i < n_i; i++) {
         F[xyi(x, y, i)] *= rho0 / rho_xy;
       }
@@ -176,7 +187,9 @@ function streaming_wrap() {
     const e = basis[i];
     for (let y = 0; y < n_y; y++) {
       for (let x = 0; x < n_x; x++) {
-        if ((x - n_x / 4) ** 2 + (y - n_y / 2) ** 2 < (n_y / 4) ** 2) {
+        const x_next = x + e[0];
+        const y_next = y + e[1];
+        if ((x_next - n_x / 4) ** 2 + (y_next - n_y / 2) ** 2 < (n_y / 4) ** 2) {
           // reflect off of cylinder
           const xyi_tnext = xyi(x, y, basisOpposite[i]);
         } else {
@@ -203,6 +216,7 @@ function moments(x, y): [number, vect] {
     v_y += f_i * basis[i][1];
   }
   return rho === 0 ? [0, [0, 0]] : [rho, [v_x / rho, v_y / rho]];
+  
 }
 
 // function f_eq(rho,v,i){
@@ -317,7 +331,7 @@ export function frame() {
   step();
   draw();
   window.F = F;
-  if (t < 110) {
+  if (t < 1100) {
     requestAnimationFrame(frame);
     // console.log(t);
   }

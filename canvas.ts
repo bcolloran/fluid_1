@@ -38,7 +38,6 @@ function setPlotXYC(plt: Plot, x: number, y: number, c: ColorNum, val: number) {
 
 function updatePlot(plt: Plot) {
   plt.ctx.putImageData(plt.data, 0, 0);
-  console.log(plt.data);
 }
 
 export function makePlot(w: number, h: number, containerId: string) {

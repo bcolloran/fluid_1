@@ -13,8 +13,8 @@ import { makePlot } from "./canvas";
  *
  * */
 
-const canvasWidth = 400;
-const canvasHeight = 100;
+const canvasWidth = 300;
+const canvasHeight = 50;
 
 var canvas = <HTMLCanvasElement>document.getElementById("canvas");
 var ctx = canvas.getContext("2d");
@@ -77,7 +77,6 @@ const weights = [
 
 // const force = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-// const xyi = (x, y, i) => i * n_x * n_y + y * n_x + x;
 const xyi = (x, y, i) => {
   // if (i > n_i) {
   //   throw new Error("invalid i");
@@ -91,6 +90,20 @@ const xyi = (x, y, i) => {
   return i + n_x * n_i * y + n_i * x;
 };
 
+// const xyi = (x, y, i) => i * n_x * n_y + y * n_x + x;
+const xyi_rho = (x, y, i) => {
+  // if (i > n_i) {
+  //   throw new Error("invalid i");
+  // }
+  // if (x > n_x) {
+  //   throw new Error("invalid x");
+  // }
+  // if (y > n_y) {
+  //   throw new Error("invalid y");
+  // }
+  return i + n_x * 3 * y + 3 * x;
+};
+
 // window.xyi = xyi;
 
 // function init_f() {
@@ -98,7 +111,6 @@ const xyi = (x, y, i) => {
 //     // for (let i of [0, 1, 2]) {
 //     for (let y = Math.round(n_y * 0.25); y < Math.round(n_y * 0.5); y++) {
 //       for (let x = Math.round(n_x * 0.2); x < Math.round(n_x * 0.7); x++) {
-//         // console.log(xyi(x, y, i));
 //         F[xyi(x, y, i)] = 0.01;
 //       }
 //     }
@@ -115,9 +127,7 @@ function randn_bm() {
 
 // flow to the right with some perturbations
 function init_flow_right() {
-  console.log("flow");
-  F = F.map(() => 1 + 0.01 *randn_bm();
-  console.log(F);
+  F = F.map(() => 1 + 0.01 * randn_bm());
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
       // i=1 is to the right
@@ -189,7 +199,10 @@ function streaming_wrap() {
       for (let x = 0; x < n_x; x++) {
         const x_next = x + e[0];
         const y_next = y + e[1];
-        if ((x_next - n_x / 4) ** 2 + (y_next - n_y / 2) ** 2 < (n_y / 4) ** 2) {
+        if (
+          (x_next - n_x / 4) ** 2 + (y_next - n_y / 2) ** 2 <
+          (n_y / 4) ** 2
+        ) {
           // reflect off of cylinder
           const xyi_tnext = xyi(x, y, basisOpposite[i]);
         } else {
@@ -205,7 +218,7 @@ function streaming_wrap() {
   }
 }
 
-function moments(x, y): [number, vect] {
+function moments(x, y): void {
   let v_x = 0;
   let v_y = 0;
   let rho = 0;
@@ -215,8 +228,10 @@ function moments(x, y): [number, vect] {
     v_x += f_i * basis[i][0];
     v_y += f_i * basis[i][1];
   }
-  return rho === 0 ? [0, [0, 0]] : [rho, [v_x / rho, v_y / rho]];
-  
+  // return rho === 0 ? [0, [0, 0]] : [rho, [v_x / rho, v_y / rho]];
+  rhoVxVy[xyi_rho(x, y, 0)] = rho;
+  rhoVxVy[xyi_rho(x, y, 1)] = v_x / rho;
+  rhoVxVy[xyi_rho(x, y, 2)] = v_y / rho;
 }
 
 // function f_eq(rho,v,i){
@@ -228,7 +243,10 @@ function moments(x, y): [number, vect] {
 function collision() {
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
-      const [rho, v] = moments(x, y);
+      moments(x, y);
+      const rho = rhoVxVy[xyi_rho(x, y, 0)];
+      const v = [rhoVxVy[xyi_rho(x, y, 1)], rhoVxVy[xyi_rho(x, y, 2)]];
+
       const vDotV = dot(v, v);
 
       for (let i = 0; i < n_i; i++) {
@@ -252,25 +270,36 @@ function step() {
 const image_xyc = (x, y, c) => x * 4 + y * (canvasWidth * 4) + c;
 
 function draw() {
+  const { vx_min, vx_max, vy_min, vy_max } = rho_diagnostics();
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
-      const [rho, v] = moments(x, y);
+      // const [rho, v] = moments(x, y);
+      const rho = rhoVxVy[xyi_rho(x, y, 0)];
+      const v_x = rhoVxVy[xyi_rho(x, y, 1)];
+      const v_y = rhoVxVy[xyi_rho(x, y, 2)];
+
+      const vx_plt = (v_x - vx_min) / (vx_max - vx_min);
+
       plt2.setA(x, y, 255);
 
-      plt2.setR(x, y, F[xyi(x, y, 1)] * 10);
+      plt2.setR(x, y, vx_plt * 255);
       plt2.setG(x, y, 0);
       plt2.setB(x, y, 0);
-      // plt2.setR(x, y, (v[0] / 1) * 255);
-      // plt2.setB(x, y, (v[1] / 1) * 255);
 
-      if (isNaN(rho) || isNaN(v[0]) || isNaN(v[1])) {
-        // console.log(x, y);
+      const vy_plt = (v_y - vy_min) / (vy_max - vy_min);
+
+      plt3.setA(x, y, 255);
+
+      plt3.setR(x, y, vy_plt * 255);
+      plt3.setG(x, y, 0);
+      plt3.setB(x, y, 0);
+
+      if (isNaN(rho) || isNaN(v_x) || isNaN(v_y)) {
         imageData.data[image_xyc(x, y, 0)] = 255;
         imageData.data[image_xyc(x, y, 1)] = 0;
         imageData.data[image_xyc(x, y, 2)] = 0;
         imageData.data[image_xyc(x, y, 3)] = 255;
       } else if (rho < 0) {
-        // console.log(x, y);
         imageData.data[image_xyc(x, y, 0)] = 0;
         imageData.data[image_xyc(x, y, 1)] = 255;
         imageData.data[image_xyc(x, y, 2)] = 0;
@@ -291,49 +320,76 @@ function draw() {
   }
   ctx.putImageData(imageData, 0, 0);
   plt2.update();
-  print_diagnostics();
+  plt3.update();
 }
 
 function rho_diagnostics() {
   let rho_sum = 0;
   let rho_max = -Infinity;
   let rho_min = Infinity;
+
+  let vx_max = -Infinity;
+  let vx_min = Infinity;
+
+  let vy_max = -Infinity;
+  let vy_min = Infinity;
   for (let y = 0; y < n_y; y++) {
     for (let x = 0; x < n_x; x++) {
-      const [rho, v] = moments(x, y);
+      const rho = rhoVxVy[xyi_rho(x, y, 0)];
+      const vx = rhoVxVy[xyi_rho(x, y, 1)];
+      const vy = rhoVxVy[xyi_rho(x, y, 2)];
       rho_sum += rho;
       rho_max = Math.max(rho, rho_max);
       rho_min = Math.min(rho, rho_min);
+
+      vx_max = Math.max(vx, vx_max);
+      vx_min = Math.min(vx, vx_min);
+
+      vy_max = Math.max(vy, vy_max);
+      vy_min = Math.min(vy, vy_min);
     }
   }
-  return [rho_sum / (n_y * n_x), rho_min, rho_max];
+  return {
+    rho_mean: rho_sum / (n_y * n_x),
+    rho_min,
+    rho_max,
+    vx_max,
+    vx_min,
+    vy_max,
+    vy_min,
+  };
 }
 
-function print_diagnostics() {
-  const [rho_mean, rho_min, rho_max] = rho_diagnostics();
-  const sum = F.reduce((a, b) => a + b, 0);
-  mass_div.innerHTML = `<pre>
-t: ${t}
-sum: ${sum}
-max: ${Math.max(...F)}
-min: ${Math.min(...F)}
-mean: ${sum / (n_i * n_x * n_y)}
-rho_mean: ${rho_mean}
-rho_min: ${rho_min}
-rho_max: ${rho_max}
-  </pre>`;
-}
+// function rho_diagnostic_str() {
+//   const [rho_mean, rho_min, rho_max] = rho_diagnostics();
+//   return `rho_mean: ${rho_mean}
+// rho_min: ${rho_min}
+// rho_max: ${rho_max}`;
+// }
+
+// function print_diagnostics() {
+//   const rho_str = rho_diagnostic_str();
+//   const sum = F.reduce((a, b) => a + b, 0);
+//   mass_div.innerHTML = `<pre>
+// t: ${t}
+// sum: ${sum}
+// max: ${Math.max(...F)}
+// min: ${Math.min(...F)}
+// mean: ${sum / (n_i * n_x * n_y)}
+// ${rho_str}
+//   </pre>`;
+// }
 
 let t = 0;
 export function frame() {
-  // console.log(F);
-  // console.log(imageData);
   step();
   draw();
-  window.F = F;
-  if (t < 1100) {
+  // print_diagnostics();
+  // window.F = F;
+  // window.rhoVxVy = rhoVxVy
+  if (t < 5000) {
     requestAnimationFrame(frame);
-    // console.log(t);
+    console.log(t);
   }
   t++;
 }
@@ -346,6 +402,7 @@ let mass_div;
 
 document.getElementById("more_plots").innerHTML = "";
 const plt2 = makePlot(canvasWidth, canvasHeight, "more_plots");
+const plt3 = makePlot(canvasWidth, canvasHeight, "more_plots");
 
 setTimeout(() => {
   button_next = document.getElementById("button_next");

@@ -36,17 +36,34 @@ function setPlotXYC(plt: Plot, x: number, y: number, c: ColorNum, val: number) {
   plt.data.data[image_xyc(x, y, c, width)] = val;
 }
 
+function setPlotXYRGB(plt: Plot, x: number, y: number, RGB: number[]) {
+  setPlotXYC(plt, x, y, 0, RGB[0]);
+  setPlotXYC(plt, x, y, 1, RGB[1]);
+  setPlotXYC(plt, x, y, 2, RGB[2]);
+}
+
 function updatePlot(plt: Plot) {
   plt.ctx.putImageData(plt.data, 0, 0);
 }
 
 export function makePlot(w: number, h: number, containerId: string) {
   const plt = initCtx(w, h, containerId);
+
+  for (let x = 0; x < plt.canvas.width; x++) {
+    for (let y = 0; y < plt.canvas.height; y++) {
+      setPlotXYC(plt, x, y, 0, 255);
+      setPlotXYC(plt, x, y, 1, 255);
+      setPlotXYC(plt, x, y, 2, 255);
+      setPlotXYC(plt, x, y, 3, 255);
+    }
+  }
+
   return {
     setR: (x, y, v) => setPlotXYC(plt, x, y, 0, v),
     setG: (x, y, v) => setPlotXYC(plt, x, y, 1, v),
     setB: (x, y, v) => setPlotXYC(plt, x, y, 2, v),
     setA: (x, y, v) => setPlotXYC(plt, x, y, 3, v),
+    setRGB: (x, y, RGB) => setPlotXYRGB(plt, x, y, RGB),
     update: () => updatePlot(plt),
   };
 }

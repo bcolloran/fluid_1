@@ -1,3 +1,6 @@
+// from khan academy:
+// https://www.khanacademy.org/computer-programming/smoothed-particle-hydrodynamics/5056836848
+
 import { initCtx } from "./canvas";
 
 // Implementation of sph as described in
@@ -6,7 +9,7 @@ import { initCtx } from "./canvas";
 //    http://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 
 // Number of particles
-let N = 400;
+let N = 3000;
 let x, y, vx, vy, vhx, vhy, ax, ay, rho;
 
 let h = 0.016; // Particle radius
@@ -22,7 +25,8 @@ const gravity = -9.8; // Gravity
 const mu = 3; // Viscosity (0.1)
 const rho0 = 1000; // Reference density
 const rho02 = rho0 * 2;
-let dt = 18e-4; // Time step in seconds
+// let dt = 18e-4; // Time step in seconds
+let dt = 0.0018; // Time step in seconds
 const dt2 = dt / 2; // Half time step in seconds
 const restitution = 0.95; // Coefficient of restituion for boundary
 const PI = Math.PI;
@@ -282,13 +286,7 @@ let leapfrogStep = function () {
       vhx[i] *= -restitution;
     }
 
-    /*if (y[i] < edge1) {
-            y[i] = edge1 + random(0.0001, 0.0005);
-            vy[i] *= -restitution;
-            vhy[i] *= -restitution;
-        } else */ if (
-      y[i] > edge3
-    ) {
+    if (y[i] > edge3) {
       y[i] = edge3 - random(0.0001, 0.0005);
       vy[i] *= -restitution;
       vhy[i] *= -restitution;
@@ -361,5 +359,16 @@ function draw() {
   requestAnimationFrame(draw);
 }
 
-// requestAnimationFrame(draw);
-draw();
+// draw();
+
+export function doUpdates(N) {
+  const t0 = Date.now();
+  let i = 0;
+  while (i < N) {
+    update();
+    i++;
+  }
+  console.log("TOTAL TIME: ", Date.now() - t0);
+}
+
+updateCanvas();

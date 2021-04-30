@@ -50,7 +50,6 @@ const edge3 = height / width - edge1;
 let mass;
 let _scale = width;
 let diameter = h * _scale * 0.85;
-let i, j;
 
 // const initialiseArrays = function () {
 let x = new Float64Array(N); // Positions
@@ -87,7 +86,7 @@ const sfcRandom = sfc32(1, 2, 3, 44);
 const random = (a, b) => sfcRandom() * (b - a) + a;
 
 let randomInit = function () {
-  for (i = N; i--; ) {
+  for (let i = N; i--; ) {
     // Initialize particle positions
     x[i] = random(h, 0.25);
     y[i] = random(0.5, 0.95);
@@ -103,7 +102,7 @@ let particlesInMesh = function (y1, y2) {
   let yp = y1;
   let r = h;
 
-  for (i = 0; i < N; i++) {
+  for (let i = 0; i < N; i++) {
     // Initialize particle positions
     x[i] = xp;
     y[i] = yp;
@@ -127,7 +126,6 @@ let particlesInMesh = function (y1, y2) {
 
 let computeDensities = function () {
   // Find new densities
-  let dx, dy, r2, z, rho_ij;
   let C1 = (4 * mass) / (PI * h2);
   let C2 = (4 * mass) / (PI * h8);
 
@@ -136,13 +134,13 @@ let computeDensities = function () {
 
   for (let i = 0; i < N; i++) {
     for (let j = i + 1; j < N; j++) {
-      dx = x[i] - x[j];
-      dy = y[i] - y[j];
-      r2 = dx * dx + dy * dy;
-      z = h2 - r2;
+      let dx = x[i] - x[j];
+      let dy = y[i] - y[j];
+      let r2 = dx * dx + dy * dy;
+      let z = h2 - r2;
 
       if (z > 0) {
-        rho_ij = C2 * z * z * z;
+        let rho_ij = C2 * z * z * z;
         throwIfNan([rho_ij], "computeDensities");
         rho[i] += rho_ij;
         rho[j] += rho_ij;
@@ -151,38 +149,36 @@ let computeDensities = function () {
   }
 };
 
-let computeAccelerations = function () {
+function computeAccelerations() {
   computeDensities();
   // Start with gravity and surface forces
-  for (i = N; i--; ) {
+  for (let i = N; i--; ) {
     ax[i] = 0;
     ay[i] = -gravity;
   }
 
   // Find new densities
-  let dx, dy, r2, rhoi, rhoj, q, u, w0, wp, wv, dvx, dvy;
-
   for (let i = N; i--; ) {
-    rhoi = rho[i];
+    let rhoi = rho[i];
     const nearPoints = hashGrid.getNearPointsInNonLeftCells(x[i], y[i]);
 
     for (let j of nearPoints) {
       // to ensure we only handle a pair of particles once, require i<j
       if (i < j) {
-        dx = x[i] - x[j];
-        dy = y[i] - y[j];
-        r2 = dx * dx + dy * dy;
+        let dx = x[i] - x[j];
+        let dy = y[i] - y[j];
+        let r2 = dx * dx + dy * dy;
 
         if (r2 < h2) {
-          rhoj = rho[j];
-          q = Math.sqrt(r2) / h;
-          u = 1 - q;
-          w0 = (C0 * u) / (rhoi * rhoj);
-          wp = (w0 * Cp * (rhoi + rhoj - rho02) * u) / q;
-          wv = w0 * Cv;
+          let rhoj = rho[j];
+          let q = Math.sqrt(r2) / h;
+          let u = 1 - q;
+          let w0 = (C0 * u) / (rhoi * rhoj);
+          let wp = (w0 * Cp * (rhoi + rhoj - rho02) * u) / q;
+          let wv = w0 * Cv;
 
-          dvx = vx[i] - vx[j];
-          dvy = vy[i] - vy[j];
+          let dvx = vx[i] - vx[j];
+          let dvy = vy[i] - vy[j];
 
           ax[i] += wp * dx + wv * dvx;
           ay[i] += wp * dy + wv * dvy;
@@ -193,11 +189,10 @@ let computeAccelerations = function () {
       }
     }
   }
-};
+}
 
-let updateParticles = function () {
+function updateParticles() {
   let collisions = [];
-  let dx, dy, r2;
 
   // Reset properties and find collisions
   for (let i = 0; i < N; i++) {
@@ -210,10 +205,11 @@ let updateParticles = function () {
 
     // Calculate which particles overlap
     for (let j = i + 1; j < N; j++) {
-      dx = x[i] - x[j];
-      dy = y[i] - y[j];
-      r2 = dx * dx + dy * dy;
+      let dx = x[i] - x[j];
+      let dy = y[i] - y[j];
+      let r2 = dx * dx + dy * dy;
       if (r2 < h2) {
+        // console.log("col1", i, j, r2, h2);
         collisions.push([i, j, dx, dy, r2]);
       }
     }
@@ -228,12 +224,19 @@ let updateParticles = function () {
     // Reset acceleration
     // ax[i] = 0;
     // ay[i] = -gravity;
-    const nearPoints = hashGrid.getNearPointsInNonLeftCells(x[i], y[i]);
-    for (let j of nearPoints) {
-      if (j > i) {
-        dx = x[i] - x[j];
-        dy = y[i] - y[j];
-        r2 = dx * dx + dy * dy;
+    const nearPoints = hashGrid.getNearPoints(x[i], y[i]);
+
+    if (nearPoints.length !== new Set(nearPoints).size) {
+      throw new Error("dupe points in nearPoints");
+    }
+
+    for (let k = 0; k < nearPoints.length; k++) {
+      const j = nearPoints[k];
+      if (i < j) {
+        let dx = x[i] - x[j];
+        let dy = y[i] - y[j];
+        let r2 = dx * dx + dy * dy;
+
         if (r2 < h2) {
           collisions2.push([i, j, dx, dy, r2]);
         }
@@ -241,15 +244,19 @@ let updateParticles = function () {
     }
   }
   if (collisions.length !== collisions2.length) {
+    console.log(
+      "collisions.length !== collisions2.length",
+      collisions.length,
+      collisions2.length
+    );
     throw new Error("collision mismatch");
   }
 
   // Calculate densities
-  let c, rho_ij, z;
-  for (i = collisions.length; i--; ) {
-    c = collisions[i];
-    z = h2 - c[4];
-    rho_ij = C2 * z * z * z;
+  for (let i = 0; i < collisions.length; i++) {
+    let c = collisions[i];
+    let z = h2 - c[4];
+    let rho_ij = C2 * z * z * z;
     rho[c[0]] += rho_ij;
     rho[c[1]] += rho_ij;
   }
@@ -258,9 +265,8 @@ let updateParticles = function () {
 
   // // Calculate accelerations
 
-  // let pi, pj, q, u, w0, wp, wv, dvx, dvy;
-  for (i = collisions.length; i--; ) {
-    c = collisions[i];
+  for (let i = 0; i < collisions.length; i++) {
+    let c = collisions[i];
     let pi = c[0];
     let pj = c[1];
 
@@ -279,7 +285,7 @@ let updateParticles = function () {
     ay[pj] -= wp * c[3] + wv * dvy;
     throwIfNan([ax[pi], ax[pj], ay[pi], ay[pj]], "updateParticles");
   }
-};
+}
 
 let normalizeMassForInit = function () {
   mass = 1;
@@ -287,7 +293,7 @@ let normalizeMassForInit = function () {
 
   let rho2s = 0;
   let rhos = 0;
-  for (i = N; i--; ) {
+  for (let i = 0; i < N; i++) {
     rho2s += rho[i] * rho[i];
     rhos += rho[i];
   }
@@ -300,7 +306,7 @@ let normalizeMassForInit = function () {
 };
 
 let leapfrogInit = function () {
-  for (i = N; i--; ) {
+  for (let i = 0; i < N; i++) {
     // Update half step velocity
     vhx[i] = vx[i] + ax[i] * dt2;
     vhy[i] = vy[i] + ay[i] * dt2;
@@ -319,7 +325,7 @@ let leapfrogInit = function () {
 };
 
 let leapfrogStep = function () {
-  for (i = N; i--; ) {
+  for (let i = 0; i < N; i++) {
     // Update half step velocity
     vhx[i] += ax[i] * dt;
     vhy[i] += ay[i] * dt;
@@ -374,12 +380,27 @@ let update = function () {
 let initialiseSystem = function () {
   // initialiseArrays();
   particlesInMesh(0.05, height / width - 0.01);
-  normalizeMassForInit();
-  computeAccelerations();
-  leapfrogInit();
   let dupes = findDupes(hashGrid);
   if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - particlesInMesh");
+    throw new Error("dupes in hash grid - after particlesInMesh");
+  }
+
+  normalizeMassForInit();
+  dupes = findDupes(hashGrid);
+  if (dupes.length > 0) {
+    throw new Error("dupes in hash grid - after normalizeMassForInit");
+  }
+
+  computeAccelerations();
+  dupes = findDupes(hashGrid);
+  if (dupes.length > 0) {
+    throw new Error("dupes in hash grid - after computeAccelerations");
+  }
+
+  leapfrogInit();
+  dupes = findDupes(hashGrid);
+  if (dupes.length > 0) {
+    throw new Error("dupes in hash grid - after leapfrogInit");
   }
 };
 

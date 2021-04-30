@@ -9,7 +9,7 @@ import { initCtx } from "./canvas";
 //    http://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 
 // Number of particles
-let N = 3000;
+let N = 2000;
 let x, y, vx, vy, vhx, vhy, ax, ay, rho;
 
 let h = 0.016; // Particle radius
@@ -295,7 +295,6 @@ let leapfrogStep = function () {
 };
 
 let update = function () {
-  computeAccelerations();
   updateParticles();
   leapfrogStep();
 };
@@ -340,7 +339,7 @@ function throwIfNan(nums: number[], where: string | null = null) {
   }
 }
 
-function draw() {
+export function draw() {
   let m = millis();
 
   // Find maxRho

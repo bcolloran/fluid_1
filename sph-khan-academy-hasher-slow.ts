@@ -10,7 +10,7 @@ import { SpatialHashGridNaive, findDupes } from "./spatial-hasher";
 //    http://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 
 // Number of particles
-let N = 1000;
+let N = 2000;
 // let x:Float64Array
 // lety:Float64Array, vx:Float64Array, vy, vhx, vhy, ax, ay, rho;
 
@@ -118,10 +118,10 @@ let particlesInMesh = function (y1, y2) {
     vx[i] = random(-0.02, 0.02);
     vy[i] = random(-0.02, 0.02);
   }
-  let dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - particlesInMesh");
-  }
+  // let dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - particlesInMesh");
+  // }
 };
 
 let computeDensities = function () {
@@ -133,17 +133,23 @@ let computeDensities = function () {
   rho.fill(C1);
 
   for (let i = 0; i < N; i++) {
-    for (let j = i + 1; j < N; j++) {
-      let dx = x[i] - x[j];
-      let dy = y[i] - y[j];
-      let r2 = dx * dx + dy * dy;
-      let z = h2 - r2;
+    const nearPoints = hashGrid.getNearPointsInNonLeftCells(x[i], y[i]);
 
-      if (z > 0) {
-        let rho_ij = C2 * z * z * z;
-        throwIfNan([rho_ij], "computeDensities");
-        rho[i] += rho_ij;
-        rho[j] += rho_ij;
+    for (let j of nearPoints) {
+      // to ensure we only handle a pair of particles once, require i<j
+      if (i < j) {
+        // for (let j = i + 1; j < N; j++) {
+        let dx = x[i] - x[j];
+        let dy = y[i] - y[j];
+        let r2 = dx * dx + dy * dy;
+        let z = h2 - r2;
+
+        if (z > 0) {
+          let rho_ij = C2 * z * z * z;
+          throwIfNan([rho_ij], "computeDensities");
+          rho[i] += rho_ij;
+          rho[j] += rho_ij;
+        }
       }
     }
   }
@@ -193,7 +199,6 @@ function computeAccelerations() {
 
 function updateParticles() {
   let collisions = [];
-
   // Reset properties and find collisions
   for (let i = 0; i < N; i++) {
     // Reset density
@@ -202,33 +207,7 @@ function updateParticles() {
     // Reset acceleration
     ax[i] = 0;
     ay[i] = -gravity;
-
-    // Calculate which particles overlap
-    for (let j = i + 1; j < N; j++) {
-      let dx = x[i] - x[j];
-      let dy = y[i] - y[j];
-      let r2 = dx * dx + dy * dy;
-      if (r2 < h2) {
-        // console.log("col1", i, j, r2, h2);
-        collisions.push([i, j, dx, dy, r2]);
-      }
-    }
-  }
-
-  let collisions2 = [];
-  // Reset properties and find collisions
-  for (let i = 0; i < N; i++) {
-    // Reset density
-    // rho[i] = C1;
-
-    // Reset acceleration
-    // ax[i] = 0;
-    // ay[i] = -gravity;
     const nearPoints = hashGrid.getNearPoints(x[i], y[i]);
-
-    if (nearPoints.length !== new Set(nearPoints).size) {
-      throw new Error("dupe points in nearPoints");
-    }
 
     for (let k = 0; k < nearPoints.length; k++) {
       const j = nearPoints[k];
@@ -238,18 +217,10 @@ function updateParticles() {
         let r2 = dx * dx + dy * dy;
 
         if (r2 < h2) {
-          collisions2.push([i, j, dx, dy, r2]);
+          collisions.push([i, j, dx, dy, r2]);
         }
       }
     }
-  }
-  if (collisions.length !== collisions2.length) {
-    console.log(
-      "collisions.length !== collisions2.length",
-      collisions.length,
-      collisions2.length
-    );
-    throw new Error("collision mismatch");
   }
 
   // Calculate densities
@@ -360,48 +331,43 @@ let leapfrogStep = function () {
 };
 
 let update = function () {
-  computeAccelerations();
-  let dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - update - computeAccelerations ");
-  }
   updateParticles();
-  dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - update - updateParticles");
-  }
+  // dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - update - updateParticles");
+  // }
   leapfrogStep();
-  dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - update - leapfrogStep");
-  }
+  // dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - update - leapfrogStep");
+  // }
 };
 
 let initialiseSystem = function () {
   // initialiseArrays();
   particlesInMesh(0.05, height / width - 0.01);
-  let dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - after particlesInMesh");
-  }
+  // let dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - after particlesInMesh");
+  // }
 
   normalizeMassForInit();
-  dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - after normalizeMassForInit");
-  }
+  // dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - after normalizeMassForInit");
+  // }
 
   computeAccelerations();
-  dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - after computeAccelerations");
-  }
+  // dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - after computeAccelerations");
+  // }
 
   leapfrogInit();
-  dupes = findDupes(hashGrid);
-  if (dupes.length > 0) {
-    throw new Error("dupes in hash grid - after leapfrogInit");
-  }
+  // dupes = findDupes(hashGrid);
+  // if (dupes.length > 0) {
+  //   throw new Error("dupes in hash grid - after leapfrogInit");
+  // }
 };
 
 /**************************************

@@ -178,9 +178,9 @@ export class SpatialHashGridNaive {
     } else {
       this.pointLists[key] = [pointIndex];
     }
-    if (this.pointLists[key].length !== new Set(this.pointLists[key]).size) {
-      throw new Error("index added to pointlist twice");
-    }
+    // if (this.pointLists[key].length !== new Set(this.pointLists[key]).size) {
+    //   throw new Error("index added to pointlist twice");
+    // }
   }
 
   removePoint(pointIndex: number, x: number, y: number): void {

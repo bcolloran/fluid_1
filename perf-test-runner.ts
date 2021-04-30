@@ -1,4 +1,7 @@
-import { doUpdates as runNaive } from "./sph-khan-academy-naive";
+import {
+  doUpdates as runNaive,
+  draw as drawNaive,
+} from "./sph-khan-academy-naive";
 import {
   doUpdates as runHasherSlow,
   draw,
@@ -14,4 +17,5 @@ import {
 //   }
 // }
 
-draw();
+// draw();
+drawNaive();

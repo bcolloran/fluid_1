@@ -9,7 +9,7 @@ import { initCtx } from "./canvas";
 //    http://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 
 // Number of particles
-let N = 2000;
+let N = 3500;
 let x, y, vx, vy, vhx, vhy, ax, ay, rho;
 
 let h = 0.016; // Particle radius
@@ -35,11 +35,11 @@ let Cp = 15 * k;
 let Cv = -40 * mu;
 let C0, C1, C2;
 
-const height = 800;
+const height = 1200;
 const width = 800;
 
 document.getElementById("more_plots").innerHTML = "";
-const plt1 = initCtx(height, width, "more_plots");
+const plt1 = initCtx(width, height, "more_plots");
 
 const edge1 = h * 0.5;
 const edge2 = 1 - edge1;

@@ -10,7 +10,7 @@ import { SpatialHashGridNaive, findDupes } from "./spatial-hasher";
 //    http://www.cs.cornell.edu/~bindel/class/cs5220-f11/code/sph.pdf
 
 // Number of particles
-let N = 2000;
+let N = 3500;
 // let x:Float64Array
 // lety:Float64Array, vx:Float64Array, vy, vhx, vhy, ax, ay, rho;
 
@@ -37,11 +37,11 @@ let Cp = 15 * k;
 let Cv = -40 * mu;
 let C0, C1, C2;
 
-const height = 800;
+const height = 1200;
 const width = 800;
 
 document.getElementById("more_plots").innerHTML = "";
-const plt1 = initCtx(height, width, "more_plots");
+const plt1 = initCtx(width, height, "more_plots");
 
 const edge1 = h * 0.5;
 const edge2 = 1 - edge1;
@@ -63,7 +63,7 @@ let ay = new Float64Array(N);
 let rho = new Float64Array(N); // Densities
 // };
 
-let hashGrid = new SpatialHashGridNaive(2 * h, 4 * N);
+let hashGrid = new SpatialHashGridNaive(h, 10 * N);
 
 function sfc32(a, b, c, d) {
   return function () {
@@ -133,7 +133,7 @@ let computeDensities = function () {
   rho.fill(C1);
 
   for (let i = 0; i < N; i++) {
-    const nearPoints = hashGrid.getNearPointsInNonLeftCells(x[i], y[i]);
+    const nearPoints = hashGrid.getNearPoints(x[i], y[i]);
 
     for (let j of nearPoints) {
       // to ensure we only handle a pair of particles once, require i<j
@@ -166,7 +166,7 @@ function computeAccelerations() {
   // Find new densities
   for (let i = N; i--; ) {
     let rhoi = rho[i];
-    const nearPoints = hashGrid.getNearPointsInNonLeftCells(x[i], y[i]);
+    const nearPoints = hashGrid.getNearPoints(x[i], y[i]);
 
     for (let j of nearPoints) {
       // to ensure we only handle a pair of particles once, require i<j
@@ -197,6 +197,13 @@ function computeAccelerations() {
   }
 }
 
+global._MAX_NEAR_POINTS = 0;
+global._MAX_NEAR_POINTS_USED = 0;
+global._MAX_COLLISIONS = 0;
+
+global._MAX_NEAR_POINTS_RATIO = -Infinity;
+global._MIN_NEAR_POINTS_RATIO = Infinity;
+
 function updateParticles() {
   let collisions = [];
   // Reset properties and find collisions
@@ -208,15 +215,19 @@ function updateParticles() {
     ax[i] = 0;
     ay[i] = -gravity;
     const nearPoints = hashGrid.getNearPoints(x[i], y[i]);
+    // const nearPoints = hashGrid.nearPointsIterator(x[i], y[i]);
 
-    for (let k = 0; k < nearPoints.length; k++) {
-      const j = nearPoints[k];
+    let nearPointsUsed = 0;
+    // for (let k = 0; k < nearPoints.length; k++) {
+    //   const j = nearPoints[k];
+    for (let j of nearPoints) {
       if (i < j) {
         let dx = x[i] - x[j];
         let dy = y[i] - y[j];
         let r2 = dx * dx + dy * dy;
 
         if (r2 < h2) {
+          nearPointsUsed++;
           collisions.push([i, j, dx, dy, r2]);
         }
       }
@@ -332,42 +343,14 @@ let leapfrogStep = function () {
 
 let update = function () {
   updateParticles();
-  // dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - update - updateParticles");
-  // }
   leapfrogStep();
-  // dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - update - leapfrogStep");
-  // }
 };
 
 let initialiseSystem = function () {
-  // initialiseArrays();
   particlesInMesh(0.05, height / width - 0.01);
-  // let dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - after particlesInMesh");
-  // }
-
   normalizeMassForInit();
-  // dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - after normalizeMassForInit");
-  // }
-
   computeAccelerations();
-  // dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - after computeAccelerations");
-  // }
-
   leapfrogInit();
-  // dupes = findDupes(hashGrid);
-  // if (dupes.length > 0) {
-  //   throw new Error("dupes in hash grid - after leapfrogInit");
-  // }
 };
 
 /**************************************
@@ -404,11 +387,6 @@ function throwIfNan(nums: number[], where: string | null = null) {
 global._TOTAL_DRAW_CYCLES = 0;
 export function draw() {
   let m = millis();
-
-  // Find maxRho
-  let maxRho = rho.reduce((a, b) => Math.max(a, b), 0);
-
-  // max.apply(null, rho);
 
   updateCanvas();
 

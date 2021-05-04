@@ -13,9 +13,9 @@ import {
 //     ["hasherSlow", runHasherSlow],
 //   ]) {
 //     console.log(name, i);
-//     runner(50);
+//     runner(100);
 //   }
 // }
 
-// draw();
-drawNaive();
+draw();
+// drawNaive();
